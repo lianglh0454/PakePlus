@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>加班猫 · 桌面小助手</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+  body { background: transparent !important; font-family: 'Microsoft YaHei', 'Segoe UI', system-ui, sans-serif; overflow: hidden; width: 100vw; height: 100vh; }
+
+  .pet-wrapper {
+    position: absolute; left: 50%; top: 58%; transform: translate(-50%, -50%);
+    width: 200px; height: 200px; display: flex; justify-content: center; align-items: center;
+    cursor: grab; overflow: visible;
+  }
+  .pet-wrapper:active { cursor: grabbing; }
+  .cat-wrap { position: relative; transition: transform .15s ease; animation: float 3s ease-in-out infinite; overflow: visible; }
+  .cat-wrap:active { transform: scale(0.94); }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  .cat { width: 150px; height: 170px; display: block; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.4)); }
+
+  .hover-info {
+    position: absolute; top: 58px; left: 50%; transform: translateX(-50%) translateY(-100%) translateY(10px);
+    background: rgba(20, 22, 28, 0.9); border: 1px solid rgba(255,255,255,0.1); padding: 6px 14px; border-radius: 20px;
+    display: flex; gap: 10px; font-size: 12px; font-weight: 700; color: #e8ecf5; opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s; box-shadow: 0 8px 20px rgba(0,0,0,0.4); white-space: nowrap; z-index: 100;
+  }
+  .hover-info::after { content: ''; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid rgba(20, 22, 28, 0.9); }
+  .pet-wrapper:hover .hover-info { opacity: 1; transform: translateX(-50%) translateY(-100%) translateY(0); }
+  .hi-item span { color: #ffd166; }
+  .hi-item.mood span { color: #7ed6a5; }
+
+  .bubble {
+    position: absolute; top: 0px; left: 50%; transform: translateX(-50%) translateY(-100%) translateY(-10px);
+    background: #fff; color: #333; padding: 8px 14px; border-radius: 14px; font-size: 12px; font-weight: 600; white-space: pre-line; text-align: center;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.3); opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none;
+    border: 2px solid #ffd9a0; z-index: 110; max-width: 220px; width: max-content; 
+  }
+  .bubble.show { opacity: 1; transform: translateX(-50%) translateY(-100%) translateY(-5px); }
+  .bubble::after { content: ''; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid #fff; }
+
+  .context-menu {
+    position: fixed; width: calc(100% - 16px); max-width: 250px;
+    background: rgba(44, 48, 59, 0.98); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 8px;
+    opacity: 0; pointer-events: none; transform: scale(0.95); transition: all .15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    z-index: 9999; left: -9999px; top: -9999px;
+  }
+  .context-menu.show { opacity: 1; pointer-events: auto; transform: scale(1); }
+
+  .cm-stats { display: flex; justify-content: space-between; font-size: 11px; color: #8b92a3; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; margin-bottom: 4px; }
+  .cm-stats span b { color: #ffd9a0; font-size: 13px; display: block; text-align: center; margin-top: 2px; }
+  .cm-stats span { text-align: center; flex: 1; }
+
+  .cm-tabs { display: flex; background: rgba(0,0,0,0.2); border-radius: 6px; padding: 2px; }
+  .tab-btn { flex: 1; padding: 4px 0; font-size: 11px; font-weight: 700; color: #8b92a3; background: transparent; border: none; border-radius: 4px; cursor: pointer; transition: all .2s; }
+  .tab-btn.active { background: rgba(255,255,255,0.1); color: #e8ecf5; }
+  
+  .cm-panel { display: none; flex-direction: column; gap: 8px; }
+  .cm-panel.active { display: flex; max-height: 240px; overflow-y: auto; padding-right: 2px; }
+  .cm-panel::-webkit-scrollbar { width: 4px; }
+  .cm-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
+
+  .time-display {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; color: #ffd166; font-weight: bold;
+    padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 6px;
+    letter-spacing: 1px; border: 1px solid rgba(255,209,102,0.2);
+  }
+  #btnRefreshTime { cursor: pointer; font-size: 14px; transition: transform 0.2s; padding: 0 4px; }
+  #btnRefreshTime:active { transform: scale(0.8) rotate(180deg); }
+
+  #focusDisplay {
+    display: none; font-size: 13px; font-weight: bold; color: #ff9a6c;
+    text-align: center; padding: 6px; background: rgba(255,122,92,0.1);
+    border-radius: 6px; border: 1px dashed rgba(255,122,92,0.3);
+  }
+
+  .cm-status { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #c8cdd8; background: rgba(0,0,0,0.15); padding: 6px 8px; border-radius: 8px; }
+  .cm-status b { color: #ffb347; }
+  .ot-money-info { font-size: 11px; color: #ffd166; text-align: center; padding: 4px 0; background: rgba(255,209,102,0.1); border-radius: 6px; margin-bottom: 4px;}
+
+  .btn { border: none; border-radius: 8px; padding: 8px 10px; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; color: #1a1c22; white-space: nowrap; text-align: center; }
+  .btn:active { transform: scale(0.95); }
+  .btn-clockin  { background: linear-gradient(135deg, #7ed6a5, #4ecca3); }
+  .btn-clockout { background: linear-gradient(135deg, #ff9a6c, #ff7a5c); color: #fff; }
+  .btn-focus    { background: #ffb347; }
+  .btn-focus.active { background: #ff7a5c; color: white; }
+  .btn-feed { background: #ffd166; }
+  .btn-play { background: #b5a6ff; color: #fff; }
+  .btn-game { background: #6cc3ff; color: #fff; }
+  .btn-save { background: #4ecca3; color: #fff; margin-top: 4px; }
+  .btn-export { background: #8b92a3; color: #fff; }
+  .btn-import { background: #8b92a3; color: #fff; }
+  .btn-view-log { background: #ffb347; color: #1a1c22; font-size: 11px; padding: 6px; margin-top: 4px; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .cm-actions { display: flex; gap: 6px; }
+  .cm-actions .btn { flex: 1; }
+
+  .setting-row { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #c8cdd8; margin-bottom: 4px; gap: 4px;}
+  .setting-row input, .setting-row select { padding: 3px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.2); color: #fff; font-size: 11px; text-align: center; outline: none; }
+  .setting-row input[type="number"] { width: 60px; }
+  .setting-row input[type="time"] { width: 70px; }
+  .setting-row input[type="text"] { flex: 1; text-align: left; }
+  .setting-row input:focus { border-color: #ffd166; }
+  
+  .event-item { background: rgba(255,255,255,0.05); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #c8cdd8; }
+  .event-header { display: flex; justify-content: space-between; font-weight: bold; }
+  .event-header span:first-child { color: #ffd166; }
+  .event-header span:last-child { color: #4ecca3; font-size: 10px; }
+  .event-footer { display: flex; justify-content: space-between; align-items: center; color: #8b92a3; font-size: 10px; }
+  .event-footer button { background: none; border: none; color: #ff7a5c; cursor: pointer; font-weight: bold;}
+
+  .toast { position: absolute; bottom: -30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 4px 12px; border-radius: 12px; font-size: 12px; opacity: 0; transition: opacity .3s; pointer-events: none; white-space: nowrap; z-index: 130; }
+  .toast.show { opacity: 1; }
+  
+  .heart { position: absolute; font-size: 18px; pointer-events: none; z-index: 120; animation: rise 1s ease-out forwards; }
+  @keyframes rise { 0% { opacity: 1; transform: translateY(0) scale(0.6); } 100% { opacity: 0; transform: translateY(-50px) scale(1.2); } }
+
+  /* ============ 游戏层 & 记录层 ============ */
+  .game-overlay {
+    position: fixed; inset: 0; z-index: 200; background: rgba(20,22,28,0.96);
+    display: flex; flex-direction: column; opacity: 0; pointer-events: none; transition: opacity .2s; overflow: hidden;
+  }
+  .game-overlay.show { opacity: 1; pointer-events: auto; }
+  .game-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; flex-shrink: 0; }
+  .game-head .title { font-size: 14px; font-weight: 700; color: #e8ecf5; flex: 1; }
+  .close-x { width: 26px; height: 26px; border-radius: 50%; border: none; cursor: pointer; background: rgba(255,255,255,0.08); color: #c8cdd8; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  
+  #gameBody { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 10px; position: relative; overflow-y: auto; }
+  #gameBody::-webkit-scrollbar, #logBody::-webkit-scrollbar { width: 4px; }
+  #gameBody::-webkit-scrollbar-thumb, #logBody::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
+
+  .game-menu-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 8px; }
+  .game-menu-head .title { font-size: 14px; font-weight: 700; color: #e8ecf5; flex: 1; }
+  .menu-coins { font-size: 13px; color: #ffd166; font-weight: 700; }
+  .game-cards { display: flex; flex-direction: column; gap: 8px; padding: 0 14px 14px; flex: 1; overflow-y: auto; }
+  .game-card { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px 12px; cursor: pointer; font-family: inherit; text-align: left; transition: all .15s; position: relative; flex-shrink: 0; }
+  .game-card.disabled { opacity: 0.45; }
+  .gc-icon { font-size: 18px; }
+  .gc-name { font-size: 13px; font-weight: 700; color: #e8ecf5; }
+  .gc-desc { font-size: 10px; color: #8b92a3; }
+  .game-card .cd { position: absolute; top: 10px; right: 12px; font-size: 10px; color: #ffb347; font-weight: 700; }
+
+  .fish-top { width: 100%; display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .fish-bar-bg { flex: 1; min-width: 100px; height: 12px; background: rgba(255,255,255,0.08); border-radius: 6px; overflow: hidden; }
+  #fishBar { height: 100%; width: 35%; border-radius: 6px; background: linear-gradient(90deg, #4ecca3, #7ed6a5); transition: width .08s linear; }
+  .fish-lane { position: relative; width: 60px; height: 150px; margin: 8px auto; border-radius: 20px; overflow: hidden; background: linear-gradient(180deg, #0b2f42 0%, #12506b 60%, #0e3d52 100%); border: 2px solid rgba(255,255,255,0.1); transition: border-color .15s; }
+  .fish-lane.in-zone { border-color: #4ecca3; box-shadow: 0 0 15px rgba(78,204,163,0.4); }
+  .fish-target { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%); font-size: 24px; will-change: top; z-index: 2; }
+  .fish-hook { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 52px; height: 36px; border-radius: 10px; will-change: top; background: rgba(78, 204, 163, 0.4); border: 2px solid #7ed6a5; box-shadow: 0 0 10px rgba(78,204,163,0.5); z-index: 1; }
+  .fish-hint { font-size: 11px; color: #8b92a3; margin-top: 4px; text-align: center; }
+  .fish-hint b { color: #ffd166; }
+
+  #coinArena { position: relative; width: 100%; height: 100%; min-height: 160px; border-radius: 12px; overflow: hidden; background: radial-gradient(ellipse at 50% 40%, rgba(255,209,102,0.08), transparent 70%); }
+  .coin-score { position: absolute; top: 4px; left: 50%; transform: translateX(-50%); font-size: 14px; font-weight: 700; color: #ffd166; z-index: 2; }
+  .falling-coin { position: absolute; font-size: 24px; cursor: pointer; animation: pop .25s ease-out; }
+  @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+
+  .rps-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+  .rps-cat { font-size: 40px; animation: float 2.4s ease-in-out infinite; }
+  .rps-text { font-size: 12px; color: #c8cdd8; text-align: center; min-height: 18px; }
+  .rps-btns { display: flex; gap: 6px; width: 100%; }
+  .rps-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); cursor: pointer; font-family: inherit; transition: all .15s; }
+  .rps-btn span { font-size: 22px; }
+  .rps-btn small { font-size: 10px; color: #9aa0ad; }
+
+  .result-mask { position: absolute; inset: 0; z-index: 250; background: rgba(10,12,16,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; }
+  .result-card { background: #2c303b; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 20px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; width: 85%; }
+  .result-card p { font-size: 14px; color: #e8ecf5; font-weight: 600; line-height: 1.4; white-space: pre-line; }
+
+  /* ======== 记录列表与编辑样式 ======== */
+  #logBody { flex:1; padding: 10px; overflow-y:auto; }
+  .log-item { display: flex; flex-direction: column; gap: 4px; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; margin-bottom: 8px; font-size: 12px; color: #e8ecf5; }
+  .log-header { display: flex; justify-content: space-between; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px; margin-bottom: 4px; }
+  .log-header span { color: #ffd166; }
+  .log-body-row { display: flex; justify-content: space-between; align-items: center; color: #c8cdd8; }
+  .log-actions { display: flex; gap: 6px; margin-top: 4px; }
+  .log-btn { background: #4ecca3; color: #1a1c22; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; font-weight: bold; }
+  .log-btn.del { background: #ff7a5c; color: #fff; }
+  .log-btn:active { transform: scale(0.95); }
+
+  /* 编辑弹窗 */
+  .edit-modal { position: absolute; inset: 0; z-index: 300; background: rgba(10,12,16,0.8); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; }
+  .edit-modal.show { display: flex; }
+  .edit-card { background: #2c303b; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 20px; width: 240px; display: flex; flex-direction: column; gap: 12px; }
+  .edit-card h3 { font-size: 14px; color: #e8ecf5; text-align: center; margin-bottom: 4px; }
+  .edit-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #c8cdd8; }
+  .edit-row input { width: 100px; padding: 4px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.2); color: #fff; outline: none; }
+  .edit-btns { display: flex; gap: 8px; margin-top: 8px; }
+  .edit-btns button { flex: 1; }
+</style>
+</head>
+<body>
+
+  <div class="pet-wrapper" id="petWrapper">
+    <div class="cat-wrap" id="catWrap">
+      <div class="hover-info" id="hoverInfo">
+        <div class="hi-item">🍚 <span id="hoverHunger">100</span></div>
+        <div class="hi-item mood">💖 <span id="hoverMood">100</span></div>
+        <div class="hi-item">💰 <span id="hoverCoins">0</span></div>
+      </div>
+      <div class="bubble" id="bubble">喵～</div>
+
+      <svg class="cat" viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="bodyGrad" cx="50%" cy="40%" r="60%">
+            <stop offset="0%" stop-color="#FFFDF0" /><stop offset="70%" stop-color="#FCEBC9" /><stop offset="100%" stop-color="#F4D39C" />
+          </radialGradient>
+          <linearGradient id="earTip" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#F4B886" /><stop offset="100%" stop-color="#E89B5B" />
+          </linearGradient>
+        </defs>
+        <path d="M 55 160 Q 50 100 100 100 Q 150 100 145 160 Q 140 195 100 195 Q 60 195 55 160 Z" fill="url(#bodyGrad)" stroke="#E8C99B" stroke-width="1.5" />
+        <g>
+          <path d="M 60 115 L 48 75 L 85 100 Z" fill="#FFFDF0" stroke="#E8C99B" stroke-width="1.5" stroke-linejoin="round"/><path d="M 62 108 L 54 84 L 78 100 Z" fill="url(#earTip)" />
+          <path d="M 140 115 L 152 75 L 115 100 Z" fill="#FFFDF0" stroke="#E8C99B" stroke-width="1.5" stroke-linejoin="round"/><path d="M 138 108 L 146 84 L 122 100 Z" fill="url(#earTip)" />
+        </g>
+        <g>
+          <ellipse cx="40" cy="150" rx="16" ry="10" fill="#FFFDF0" stroke="#E8C99B" stroke-width="1.5" transform="rotate(-20 40 150)" /><ellipse cx="35" cy="150" rx="10" ry="6" fill="url(#earTip)" transform="rotate(-20 35 150)" />
+          <ellipse cx="160" cy="150" rx="16" ry="10" fill="#FFFDF0" stroke="#E8C99B" stroke-width="1.5" transform="rotate(20 160 150)" /><ellipse cx="165" cy="150" rx="10" ry="6" fill="url(#earTip)" transform="rotate(20 165 150)" />
+        </g>
+        <g>
+          <ellipse cx="78" cy="135" rx="4.5" ry="8" fill="#4A90E2" /><ellipse cx="122" cy="135" rx="4.5" ry="8" fill="#4A90E2" />
+          <ellipse cx="77" cy="132" rx="1.5" ry="3" fill="#fff" /><ellipse cx="121" cy="132" rx="1.5" ry="3" fill="#fff" />
+          <path d="M 95 148 L 100 153 L 105 148" stroke="#333" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round" /><path d="M 100 153 L 100 158" stroke="#333" stroke-width="1.5" fill="none" stroke-linecap="round" />
+          <line x1="60" y1="145" x2="40" y2="142" stroke="#666" stroke-width="1.5" stroke-linecap="round" /><line x1="60" y1="152" x2="40" y2="155" stroke="#666" stroke-width="1.5" stroke-linecap="round" />
+          <line x1="140" y1="145" x2="160" y2="142" stroke="#666" stroke-width="1.5" stroke-linecap="round" /><line x1="140" y1="152" x2="160" y2="155" stroke="#666" stroke-width="1.5" stroke-linecap="round" />
+        </g>
+        <g transform="translate(100, 175)">
+          <path d="M 0 0 L -15 -10 L -15 10 Z" fill="#2B2B33" stroke="#1a1a1f" stroke-width="1" stroke-linejoin="round" /><path d="M 0 0 L 15 -10 L 15 10 Z" fill="#2B2B33" stroke="#1a1a1f" stroke-width="1" stroke-linejoin="round" />
+          <circle cx="0" cy="0" r="5" fill="#2B2B33" /><circle cx="0" cy="0" r="2.5" fill="#4A4A55" />
+        </g>
+      </svg>
+    </div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <div class="context-menu" id="contextMenu">
+    <div class="cm-stats">
+      <span>等级<b id="uiLevel">1</b></span>
+      <span>经验<b id="uiExp">0/40</b></span>
+      <span>今日专注<b id="uiFocusTotal">00:00</b></span>
+      <span>今日加班<b id="uiOT">00:00</b></span>
+    </div>
+    
+    <div class="cm-tabs">
+      <button class="tab-btn active" data-tab="work">💼 工作</button>
+      <button class="tab-btn" data-tab="fun">🎮 娱乐</button>
+      <button class="tab-btn" data-tab="setting">⚙️ 设置</button>
+      <button class="tab-btn" data-tab="calendar">📅 日历</button>
+    </div>
+
+    <!-- 工作面板 -->
+    <div class="cm-panel active" id="panel-work">
+      <div class="time-display">
+        <span id="timeText">🕒 当前时间: --:--:--</span>
+        <span id="btnRefreshTime" title="同步电脑时间">🔄</span>
+      </div>
+      <div class="ot-money-info">今日加班费：<b id="uiOTMoney">0</b> 元</div>
+      
+      <div id="focusDisplay">
+        🍅 专注倒计时: <span id="focusLeft">25:00</span>
+      </div>
+
+      <div class="cm-status">
+        <span id="uiStatus">还没打卡喵～</span>
+        <button class="btn btn-clockin" id="btnClock">上班打卡</button>
+      </div>
+      <button class="btn btn-focus" id="btnFocus">🍅 开始专注 (25分)</button>
+      <button class="btn btn-view-log" id="btnViewLog">📋 查看加班记录</button>
+    </div>
+
+    <!-- 娱乐面板 -->
+    <div class="cm-panel" id="panel-fun">
+      <div class="cm-actions">
+        <button class="btn btn-feed" id="btnFeed">🍚 喂食 10</button>
+        <button class="btn btn-play" id="btnPlay">🎾 陪玩 5</button>
+      </div>
+      <button class="btn btn-game" id="btnGame">🎮 玩游戏赚金币</button>
+    </div>
+
+    <!-- 设置面板 -->
+    <div class="cm-panel" id="panel-setting">
+      <div class="setting-row time-row">上班时间 <input type="time" id="setStart" value="08:30"></div>
+      <div class="setting-row time-row">下班时间 <input type="time" id="setEnd" value="17:30"></div>
+      <div class="setting-row">工作日时薪 <input type="number" id="setRateWd" value="50" min="0"></div>
+      <div class="setting-row">周末时薪 <input type="number" id="setRateWe" value="100" min="0"></div>
+      <div class="setting-row">专注时长 <input type="number" id="setFocus" value="25" min="1" max="120"></div>
+      
+      <div class="setting-row" style="margin-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px;">
+        <input type="text" id="setSavePath" placeholder="数据文件绝对路径">
+      </div>
+      <div class="cm-actions" style="margin-top:4px;">
+        <button class="btn btn-export" id="btnExport">导出文件</button>
+        <button class="btn btn-import" id="btnImport">导入文件</button>
+      </div>
+
+      <button class="btn btn-save" id="btnSaveSettings" style="margin-top:8px;">保存所有设置</button>
+    </div>
+
+    <!-- 日历面板 -->
+    <div class="cm-panel" id="panel-calendar">
+      <div class="setting-row"><input type="text" id="eventName" placeholder="事件名称 (如发薪日)"></div>
+      
+      <div class="setting-row">
+        <select id="eventFreq" style="flex:1; padding:4px;">
+          <option value="yearly">每年</option>
+          <option value="monthly">每月</option>
+          <option value="daily">每天</option>
+          <option value="anniversary">纪念日 (算天数)</option>
+        </select>
+      </div>
+
+      <div class="setting-row" id="inputYearly" style="display:flex;">
+        <input type="number" id="inYearM" placeholder="月(1-12)" min="1" max="12" style="flex:1;">
+        <span>-</span>
+        <input type="number" id="inYearD" placeholder="日(1-31)" min="1" max="31" style="flex:1;">
+      </div>
+      <div class="setting-row" id="inputMonthly" style="display:none;">
+        <input type="number" id="inMonthD" placeholder="几号(1-31)" min="1" max="31" style="flex:1;">
+      </div>
+      <div class="setting-row" id="inputDaily" style="display:none;">
+        <input type="time" id="inDailyTime" style="flex:1;">
+      </div>
+      <div class="setting-row" id="inputAnniversary" style="display:none;">
+        <input type="date" id="inAnnivDate" style="flex:1;">
+      </div>
+
+      <button class="btn btn-feed" id="btnAddEvent" style="padding:4px;">添加事件</button>
+      <div id="eventList" style="display:flex; flex-direction:column; gap:6px; margin-top:6px;"></div>
+    </div>
+  </div>
+
+  <!-- 历史记录层 -->
+  <div class="game-overlay" id="logOverlay">
+    <div class="game-head">
+      <span class="title">📋 加班记录</span>
+      <button class="close-x" id="logClose">✕</button>
+    </div>
+    <div id="logBody"></div>
+  </div>
+
+  <!-- 编辑弹窗 -->
+  <div class="edit-modal" id="editModal">
+    <div class="edit-card">
+      <h3>修改打卡时间</h3>
+      <div class="edit-row">上班/开始 <input type="time" id="editIn"></div>
+      <div class="edit-row">下班/结束 <input type="time" id="editOut"></div>
+      <div class="edit-btns">
+        <button class="btn btn-save" id="btnSaveEdit">保存</button>
+        <button class="btn btn-export" id="btnCancelEdit">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 游戏浮层 -->
+  <div class="game-overlay" id="gameMenu">
+    <div class="game-menu-head">
+      <span class="title">🎮 小游戏</span><span class="menu-coins">💰 <b id="menuCoins">0</b></span><button class="close-x" id="menuClose">✕</button>
+    </div>
+    <div class="game-cards">
+      <button class="game-card" data-game="fish"><span class="gc-icon">🎣</span><span class="gc-name">小猫钓鱼</span><span class="gc-desc">按住控制钩子，把鱼钓上来</span><span class="cd"></span></button>
+      <button class="game-card" data-game="coin"><span class="gc-icon">💰</span><span class="gc-name">接金币</span><span class="gc-desc">12 秒内点中越多金币越好</span><span class="cd"></span></button>
+      <button class="game-card" data-game="rps"><span class="gc-icon">✊</span><span class="gc-name">猜拳</span><span class="gc-desc">赢一局直接拿 10 金币</span><span class="cd"></span></button>
+    </div>
+  </div>
+
+  <div class="game-overlay" id="gamePlay">
+    <div class="game-head"><span class="title" id="gameTitle"></span><span class="timer" id="gameTimer"></span><button class="close-x" id="gameQuit">✕</button></div>
+    <div id="gameBody"></div>
+  </div>
+
+<script>
+/* ===================== 存档配置 ===================== */
+const SAVE_KEY = 'workcat_save_v15';
+const defaultState = {
+  level: 1, exp: 0, hunger: 100, mood: 100, coins: 0,
+  lastTick: Date.now(), 
+  clockInAt: null, 
+  clockInType: null, 
+  hasClockedOutToday: false, 
+  todayOT: 0, todayOTMoney: 0, 
+  todayFocus: 0,
+  lastDate: new Date().toDateString(),
+  waterAt: 0, sitAt: 0, focusEndAt: null, focusWarned: false, lastInteraction: Date.now(),
+  workStart: '08:30', workEnd: '17:30', 
+  otRateWeekday: 50, otRateWeekend: 100, focusDuration: 25,
+  savePath: 'D:\\material\\other\\workcat_data.json', // 默认路径
+  events: [], lastNotified: {},
+  records: [] 
+};
+let S = loadSave();
+
+function loadSave() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return { ...defaultState };
+    const parsed = JSON.parse(raw);
+    const merged = { ...defaultState, ...parsed };
+    const today = new Date().toDateString();
+    if (merged.lastDate !== today) {
+      merged.todayOT = 0; merged.todayOTMoney = 0; merged.todayFocus = 0; merged.lastDate = today;
+      merged.clockInAt = null; merged.clockInType = null; merged.hasClockedOutToday = false;
+      merged._ot30 = false; merged._ot60 = false;
+    }
+    
+    if (merged.events) {
+      merged.events = merged.events.map(ev => {
+        if (!ev.freq || ev.freq === 'once') {
+          return { id: ev.id, name: ev.name, freq: 'anniversary', date: ev.date };
+        }
+        return ev;
+      });
+    }
+
+    if (merged.records) {
+      merged.records = merged.records.map(r => ({
+        id: r.id || Date.now().toString() + Math.random().toString(36).substr(2, 5),
+        date: r.date,
+        type: r.type || 'overtime',
+        clockInTime: r.clockInTime || '19:00',
+        clockOutTime: r.clockOutTime || '20:00',
+        otHours: r.otHours || 0,
+        salary: r.salary || 0
+      }));
+    }
+    
+    return merged;
+  } catch { return { ...defaultState }; }
+}
+
+function save() { 
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch {} 
+  if (S.savePath && window.__TAURI__ && window.__TAURI__.fs) {
+    window.__TAURI__.fs.writeTextFile(S.savePath, JSON.stringify(S, null, 2)).catch(() => {});
+  }
+}
+
+/* ===================== 自动从文件导入 ===================== */
+async function loadFromFile() {
+  if (!S.savePath) return;
+  if (!(window.__TAURI__ && window.__TAURI__.fs)) return; // 如果是浏览器环境直接跳过
+  
+  try {
+    const content = await window.__TAURI__.fs.readTextFile(S.savePath);
+    const parsed = JSON.parse(content);
+    
+    if (parsed.records && Array.isArray(parsed.records)) {
+      const currentIds = new Set(S.records.map(r => r.id));
+      let addedCount = 0;
+      
+      parsed.records.forEach(r => {
+        if (!currentIds.has(r.id)) {
+          S.records.push(r);
+          addedCount++;
+        }
+      });
+      
+      if (addedCount > 0) {
+        // 按日期重新排序
+        S.records.sort((a, b) => new Date(a.date) - new Date(b.date));
+        recalcTodayStats();
+        save();
+        showToast(`📂 已自动导入 ${addedCount} 条新记录`);
+      }
+    }
+  } catch (err) {
+    console.log("自动读取文件失败 (可能文件还不存在或路径错误):", err);
+  }
+}
+
+/* ===================== DOM ===================== */
+const $ = id => document.getElementById(id);
+const petWrapper = $('petWrapper'), catWrap = $('catWrap'), bubble = $('bubble'), toast = $('toast');
+const contextMenu = $('contextMenu');
+const uiLevel = $('uiLevel'), uiExp = $('uiExp'), uiOT = $('uiOT'), uiFocusTotal = $('uiFocusTotal'), uiStatus = $('uiStatus'), uiOTMoney = $('uiOTMoney');
+const hoverHunger = $('hoverHunger'), hoverMood = $('hoverMood'), hoverCoins = $('hoverCoins');
+const btnClock = $('btnClock'), btnFocus = $('btnFocus'), btnFeed = $('btnFeed'), btnPlay = $('btnPlay'), btnGame = $('btnGame');
+const gameMenuEl = $('gameMenu'), gamePlayEl = $('gamePlay'), gameBody = $('gameBody');
+const gameTitle = $('gameTitle'), gameTimer = $('gameTimer');
+const logOverlay = $('logOverlay'), logBody = $('logBody');
+const editModal = $('editModal'), editIn = $('editIn'), editOut = $('editOut');
+
+/* ===================== 工具 ===================== */
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+let bubbleTimer = null;
+function say(text, ms = 2200) {
+  bubble.textContent = text; bubble.classList.add('show');
+  clearTimeout(bubbleTimer);
+  bubbleTimer = setTimeout(() => bubble.classList.remove('show'), ms);
+}
+let toastTimer = null;
+function showToast(text) {
+  toast.textContent = text; toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+}
+function spawnHeart() {
+  const h = document.createElement('div');
+  h.className = 'heart'; h.textContent = ['❤️', '💕', '💖', '✨'][Math.floor(Math.random() * 4)];
+  const rect = catWrap.getBoundingClientRect();
+  h.style.left = (rect.left + rect.width / 2 + (Math.random() - 0.5) * 50) + 'px';
+  h.style.top = (rect.top + 40) + 'px'; document.body.appendChild(h);
+  setTimeout(() => h.remove(), 1000);
+}
+function formatMin(min) {
+  if (min < 0) return '00:00';
+  const h = Math.floor(min / 60), m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+function expNeed(level) { return 40 + (level - 1) * 30; }
+function addExp(n) {
+  S.exp += n; let leveled = false;
+  while (S.exp >= expNeed(S.level)) { S.exp -= expNeed(S.level); S.level++; leveled = true; }
+  if (leveled) { showToast(`🎉 升级！Lv.${S.level}`); for (let i = 0; i < 6; i++) setTimeout(spawnHeart, i * 120); }
+  save();
+}
+
+/* ===================== 独立时间更新 ===================== */
+function updateClockDisplay() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  const timeText = $('timeText');
+  if (timeText) timeText.textContent = `🕒 当前时间: ${hh}:${mm}:${ss}`;
+}
+setInterval(updateClockDisplay, 1000);
+updateClockDisplay();
+
+$('btnRefreshTime').onclick = (e) => {
+  e.stopPropagation();
+  updateClockDisplay();
+  showToast('时间已同步喵～');
+};
+
+/* ===================== 重新计算统计 ===================== */
+function recalcTodayStats() {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let ot = 0, money = 0;
+  S.records.forEach(r => {
+    if (r.date === todayStr) {
+      ot += Math.round(r.otHours * 60);
+      money += r.salary;
+    }
+  });
+  S.todayOT = ot;
+  S.todayOTMoney = money;
+}
+
+/* ===================== 界面刷新 ===================== */
+function refreshUI() {
+  hoverHunger.textContent = Math.round(S.hunger);
+  hoverMood.textContent = Math.round(S.mood);
+  hoverCoins.textContent = S.coins;
+  
+  uiLevel.textContent = S.level;
+  uiExp.textContent = `${S.exp}/${expNeed(S.level)}`;
+  uiOT.textContent = formatMin(S.todayOT);
+  uiOTMoney.textContent = S.todayOTMoney.toFixed(1);
+  uiFocusTotal.textContent = formatMin(S.todayFocus);
+  
+  btnFeed.disabled = S.coins < 10;
+  btnPlay.disabled = S.coins < 5;
+
+  const now = new Date();
+  const [eh, em] = S.workEnd.split(':').map(Number);
+  const endToday = new Date(); endToday.setHours(eh, em, 0, 0);
+
+  if (S.clockInAt) {
+    const elapsed = Math.floor((Date.now() - S.clockInAt) / 60000);
+    uiStatus.innerHTML = S.clockInType === 'overtime' ? `加班中 <b>${formatMin(elapsed)}</b>` : `已工作 <b>${formatMin(elapsed)}</b>`;
+    btnClock.textContent = '下班打卡';
+    btnClock.className = 'btn btn-clockout';
+  } else {
+    uiStatus.innerHTML = S.todayOT > 0 ? `今日加班 <b>${formatMin(S.todayOT)}</b>` : '还没打卡喵～';
+    
+    if (now >= endToday.getTime() + 10 * 60000) {
+      btnClock.textContent = '加班打卡';
+      btnClock.className = 'btn btn-feed'; 
+    } else {
+      btnClock.textContent = '上班打卡';
+      btnClock.className = 'btn btn-clockin';
+    }
+  }
+
+  const focusDisplay = $('focusDisplay');
+  const focusLeftSpan = $('focusLeft');
+  if (S.focusEndAt) {
+    const leftMs = S.focusEndAt - Date.now();
+    if (leftMs > 0) {
+      const totalSec = Math.floor(leftMs / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      focusLeftSpan.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      focusDisplay.style.display = 'block';
+      
+      btnFocus.textContent = '🛑 取消专注';
+      btnFocus.classList.add('active');
+    }
+  } else {
+    focusDisplay.style.display = 'none';
+    btnFocus.textContent = `🍅 开始专注 (${S.focusDuration}分)`;
+    btnFocus.classList.remove('active');
+  }
+
+  const menuCoins = $('menuCoins');
+  if (menuCoins) menuCoins.textContent = S.coins;
+}
+
+/* ===================== 打卡逻辑 ===================== */
+function processOvertime(mins, inTime, outTime, type) {
+  const otHours = Math.floor((mins + 5) / 30) * 0.5;
+  const today = new Date();
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const isWeekend = [0, 6].includes(today.getDay());
+  const rate = isWeekend ? S.otRateWeekend : S.otRateWeekday;
+  const money = otHours * rate;
+
+  S.records.push({
+    id: Date.now().toString(),
+    date: todayDate,
+    type: type,
+    clockInTime: inTime,
+    clockOutTime: outTime,
+    otHours: otHours,
+    salary: money
+  });
+
+  if (otHours > 0) {
+    S.todayOT += Math.round(otHours * 60);
+    S.todayOTMoney += money;
+    
+    const expReward = Math.round(otHours * 15);
+    const coinReward = Math.round(otHours * 15);
+    addExp(expReward);
+    S.coins += coinReward;
+    
+    say(`加班 ${otHours} 小时，赚了 ${money.toFixed(1)} 元💰\n经验+${expReward}，金币+${coinReward}`, 3500);
+    showToast(`+${money.toFixed(1)} 元`);
+  } else {
+    say('加班不足25分钟，不计入喵～', 2500);
+  }
+}
+
+async function handleClockClick() {
+  const now = Date.now();
+  const [eh, em] = S.workEnd.split(':').map(Number);
+  const endToday = new Date(); endToday.setHours(eh, em, 0, 0);
+
+  if (S.clockInAt) {
+    const clockInTime = new Date(S.clockInAt).toTimeString().slice(0, 5);
+    const clockOutTime = new Date(now).toTimeString().slice(0, 5);
+
+    if (S.clockInType === 'normal') {
+      if (now < endToday.getTime() - 10 * 60000) {
+        S.clockInAt = null; S.clockInType = null;
+        save(); refreshUI();
+        say('还没到下班时间，已重置打卡喵～', 3000);
+        showToast('误触已重置');
+        return; 
+      }
+      
+      S.hasClockedOutToday = true;
+      S.clockInAt = null; S.clockInType = null;
+      
+      if (now > endToday.getTime()) {
+        const ot_mins = Math.floor((now - endToday.getTime()) / 60000);
+        processOvertime(ot_mins, clockInTime, clockOutTime, 'normal');
+      } else {
+        S.mood = clamp(S.mood + 15, 0, 100);
+        say('准时下班！心情大好喵～', 3000);
+        S.records.push({
+          id: Date.now().toString(),
+          date: new Date().toISOString().slice(0, 10),
+          type: 'normal',
+          clockInTime: clockInTime,
+          clockOutTime: clockOutTime,
+          otHours: 0,
+          salary: 0
+        });
+        addExp(5);
+        S.coins += 10;
+      }
+      
+    } else {
+      const ot_mins = Math.floor((now - S.clockInAt) / 60000);
+      S.clockInAt = null; S.clockInType = null;
+      S.hasClockedOutToday = true;
+      processOvertime(ot_mins, clockInTime, clockOutTime, 'overtime');
+    }
+  } else {
+    // 打卡前，先自动从本地文件读取同步一次记录
+    await loadFromFile();
+
+    if (now >= endToday.getTime() + 10 * 60000) {
+      S.clockInAt = now; S.clockInType = 'overtime';
+      S.hasClockedOutToday = true;
+      say('加班打卡成功，辛苦喵！', 2500);
+    } else {
+      S.clockInAt = now; S.clockInType = 'normal';
+      say('上班打卡成功喵！', 2500);
+    }
+    S.mood = clamp(S.mood + 5, 0, 100);
+    for (let i = 0; i < 3; i++) setTimeout(spawnHeart, i * 150);
+  }
+  save(); refreshUI();
+}
+
+btnClock.onclick = (e) => { 
+  e.stopPropagation(); 
+  handleClockClick(); 
+  contextMenu.classList.remove('show'); 
+};
+
+/* ===================== 沉浸专注逻辑 ===================== */
+let focusTimer = null;
+
+function toggleFocus() {
+  if (S.focusEndAt) {
+    S.focusEndAt = null; 
+    clearInterval(focusTimer);
+    S.mood = clamp(S.mood - 10, 0, 100);
+    say('专注被打断了… 记得劳逸结合喵！', 3000);
+    showToast('已取消专注');
+    refreshUI(); save();
+  } else {
+    const mins = S.focusDuration;
+    S.focusEndAt = Date.now() + mins * 60000;
+    say(`番茄钟开始！专注 ${mins} 分钟喵～\n(期间不许摸鱼哦)`, 3000);
+    
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.cm-panel').forEach(p => p.classList.remove('active'));
+    document.querySelector('.tab-btn[data-tab="work"]').classList.add('active');
+    $('panel-work').classList.add('active');
+
+    clearInterval(focusTimer);
+    focusTimer = setInterval(() => {
+      if (!S.focusEndAt) { clearInterval(focusTimer); return; }
+      const left = S.focusEndAt - Date.now();
+      if (left <= 0) {
+        clearInterval(focusTimer); 
+        S.focusEndAt = null;
+        
+        S.todayFocus += S.focusDuration;
+        
+        say('🍅 专注结束！休息一下吧喵～', 4000);
+        showToast(`专注完成 +10 经验`);
+        addExp(10);
+        for(let i=0; i<5; i++) setTimeout(spawnHeart, i*150);
+      }
+      refreshUI(); save();
+    }, 1000);
+  }
+  refreshUI(); save();
+}
+
+btnFocus.onclick = (e) => { 
+  e.stopPropagation(); 
+  toggleFocus(); 
+};
+
+/* ===================== 喂食、陪玩拦截 ===================== */
+$('btnFeed').onclick = (e) => {
+  e.stopPropagation();
+  if (S.focusEndAt) { showToast('专注中，不许分心喵！'); return; }
+  if (S.coins < 10) { say('金币不够喵…', 2200); return; }
+  S.coins -= 10; S.hunger = clamp(S.hunger + 22, 0, 100); S.mood = clamp(S.mood + 6, 0, 100);
+  addExp(6); S.lastInteraction = Date.now(); say('好吃！喵呜～', 1800);
+  for (let i = 0; i < 3; i++) setTimeout(spawnHeart, i * 100);
+  save(); refreshUI();
+  contextMenu.classList.remove('show');
+};
+$('btnPlay').onclick = (e) => {
+  e.stopPropagation();
+  if (S.focusEndAt) { showToast('专注中，不许分心喵！'); return; }
+  if (S.coins < 5) { say('金币不够喵…', 2200); return; }
+  S.coins -= 5; S.mood = clamp(S.mood + 10, 0, 100);
+  addExp(8); S.lastInteraction = Date.now();
+  say(['一起玩球球！喵～', '好开心喵！', '再陪我玩会儿～'][Math.floor(Math.random() * 3)], 1800);
+  for (let i = 0; i < 5; i++) setTimeout(spawnHeart, i * 90);
+  save(); refreshUI();
+  contextMenu.classList.remove('show');
+};
+
+/* ===================== 日历倒计时计算 ===================== */
+function getEventDesc(ev) {
+  const now = new Date();
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  if (ev.freq === 'anniversary') {
+    const evDate = new Date(ev.date + 'T00:00:00');
+    const diffMs = todayMidnight - evDate;
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    return `已过去 ${days} 天`;
+  }
+  
+  if (ev.freq === 'yearly') {
+    let target = new Date(now.getFullYear(), ev.month - 1, ev.day);
+    if (target < todayMidnight) target.setFullYear(target.getFullYear() + 1);
+    const diffMs = target - todayMidnight;
+    const days = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    return days === 0 ? '就是今天！' : `还有 ${days} 天`;
+  }
+  
+  if (ev.freq === 'monthly') {
+    let target = new Date(now.getFullYear(), now.getMonth(), ev.day);
+    if (target.getMonth() !== now.getMonth()) target = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    if (target < todayMidnight) {
+      target = new Date(now.getFullYear(), now.getMonth() + 1, ev.day);
+      if (target.getMonth() !== (now.getMonth() + 1) % 12) target = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+    }
+    const diffMs = target - todayMidnight;
+    const days = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    return days === 0 ? '就是今天！' : `还有 ${days} 天`;
+  }
+  
+  if (ev.freq === 'daily') {
+    const [h, m] = ev.time.split(':').map(Number);
+    let target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
+    if (target < now) target.setDate(target.getDate() + 1);
+    const diffMs = target - now;
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    if (hours === 0 && mins === 0) return '马上就到了！';
+    return `还有 ${hours}小时${mins}分`;
+  }
+  return '';
+}
+
+function getEventTypeStr(ev) {
+  if (ev.freq === 'yearly') return `每年 ${ev.month}月${ev.day}日`;
+  if (ev.freq === 'monthly') return `每月 ${ev.day}号`;
+  if (ev.freq === 'daily') return `每天 ${ev.time}`;
+  if (ev.freq === 'anniversary') return `纪念日 ${ev.date}`;
+  return '';
+}
+
+/* ===================== 菜单与设置 ===================== */
+let isDragging = false, startX = 0, startY = 0, lastPet = 0;
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    if (S.focusEndAt && btn.dataset.tab !== 'work') {
+      showToast('专注中，请勿分心喵！');
+      return;
+    }
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.cm-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    $(`panel-${btn.dataset.tab}`).classList.add('active');
+    if (btn.dataset.tab === 'calendar') renderEvents();
+  };
+});
+
+$('btnSaveSettings').onclick = async (e) => {
+  e.stopPropagation();
+  S.workStart = $('setStart').value || '08:30';
+  S.workEnd = $('setEnd').value || '17:30';
+  S.otRateWeekday = parseFloat($('setRateWd').value) || 0;
+  S.otRateWeekend = parseFloat($('setRateWe').value) || 0;
+  S.focusDuration = parseInt($('setFocus').value) || 25;
+  S.savePath = $('setSavePath').value.trim() || 'D:\\material\\other\\workcat_data.json';
+  
+  save(); showToast('设置已保存喵～');
+  if (S.savePath && window.__TAURI__ && window.__TAURI__.fs) {
+    try {
+      await window.__TAURI__.fs.writeTextFile(S.savePath, JSON.stringify(S, null, 2));
+      showToast('已同步到本地文件！');
+    } catch (err) { showToast('路径无效或无权限喵…'); }
+  }
+};
+
+$('btnExport').onclick = (e) => {
+  e.stopPropagation();
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(S, null, 2));
+  const dlAnchorElem = document.createElement('a');
+  dlAnchorElem.setAttribute("href", dataStr);
+  dlAnchorElem.setAttribute("download", `workcat_backup_${new Date().toISOString().slice(0,10)}.json`);
+  dlAnchorElem.click();
+};
+
+$('btnImport').onclick = (e) => {
+  e.stopPropagation();
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = (event) => {
+    const file = event.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        S = { ...S, ...parsed };
+        save(); refreshUI(); syncSettings();
+        showToast('数据导入成功喵！');
+      } catch(err) { showToast('文件格式错误喵…'); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+};
+
+/* ===================== 日历逻辑 ===================== */
+const freqSelect = $('eventFreq');
+const inputYearly = $('inputYearly');
+const inputMonthly = $('inputMonthly');
+const inputDaily = $('inputDaily');
+const inputAnniversary = $('inputAnniversary');
+
+freqSelect.onchange = () => {
+  const v = freqSelect.value;
+  inputYearly.style.display = v === 'yearly' ? 'flex' : 'none';
+  inputMonthly.style.display = v === 'monthly' ? 'flex' : 'none';
+  inputDaily.style.display = v === 'daily' ? 'flex' : 'none';
+  inputAnniversary.style.display = v === 'anniversary' ? 'flex' : 'none';
+};
+
+$('btnAddEvent').onclick = (e) => {
+  e.stopPropagation();
+  const name = $('eventName').value.trim();
+  const freq = freqSelect.value;
+  if (!name) { showToast('请填写事件名称'); return; }
+
+  let newEvent = { id: Date.now().toString(), name, freq };
+
+  if (freq === 'yearly') {
+    const m = parseInt($('inYearM').value);
+    const d = parseInt($('inYearD').value);
+    if (!m || !d || m < 1 || m > 12 || d < 1 || d > 31) { showToast('请填写正确的月和日'); return; }
+    newEvent.month = m;
+    newEvent.day = d;
+  } else if (freq === 'monthly') {
+    const d = parseInt($('inMonthD').value);
+    if (!d || d < 1 || d > 31) { showToast('请填写正确的日'); return; }
+    newEvent.day = d;
+  } else if (freq === 'daily') {
+    const t = $('inDailyTime').value;
+    if (!t) { showToast('请填写具体时间'); return; }
+    newEvent.time = t;
+  } else if (freq === 'anniversary') {
+    const d = $('inAnnivDate').value;
+    if (!d) { showToast('请选择日期'); return; }
+    newEvent.date = d;
+  }
+
+  S.events.push(newEvent);
+  save();
+  renderEvents();
+  $('eventName').value = '';
+  showToast('事件已添加');
+};
+
+function renderEvents() {
+  const list = $('eventList'); list.innerHTML = '';
+  if (S.events.length === 0) { list.innerHTML = '<div style="font-size:10px;color:#8b92a3;text-align:center;">暂无日历提醒</div>'; return; }
+  
+  S.events.forEach(ev => {
+    const div = document.createElement('div'); div.className = 'event-item';
+    const countdownStr = getEventDesc(ev);
+    const typeStr = getEventTypeStr(ev);
+    
+    div.innerHTML = `
+      <div class="event-header">
+        <span>${ev.name}</span>
+        <span>${countdownStr}</span>
+      </div>
+      <div class="event-footer">
+        <span>${typeStr}</span>
+        <button data-id="${ev.id}" class="del-event">删除</button>
+      </div>
+    `;
+    
+    div.querySelector('.del-event').onclick = (e) => {
+      e.stopPropagation(); 
+      S.events = S.events.filter(x => x.id !== ev.id); 
+      save(); renderEvents();
+    };
+    list.appendChild(div);
+  });
+}
+
+/* ===================== 历史记录渲染与修改 ===================== */
+let editingRecordId = null;
+
+$('btnViewLog').onclick = (e) => {
+  e.stopPropagation();
+  contextMenu.classList.remove('show');
+  renderLog();
+  logOverlay.classList.add('show');
+};
+$('logClose').onclick = () => logOverlay.classList.remove('show');
+
+function renderLog() {
+  logBody.innerHTML = '';
+  if (S.records.length === 0) {
+    logBody.innerHTML = '<div style="font-size:12px;color:#8b92a3;text-align:center;margin-top:20px;">暂无打卡记录喵～</div>';
+    return;
+  }
+  
+  const sortedRecords = [...S.records].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  sortedRecords.forEach(r => {
+    const div = document.createElement('div'); div.className = 'log-item';
+    
+    const typeLabel = r.type === 'overtime' ? '加班' : '正常';
+    const typeColor = r.type === 'overtime' ? '#ff7a5c' : '#4ecca3';
+    
+    div.innerHTML = `
+      <div class="log-header">
+        <span>${r.date}</span>
+        <span style="color:${typeColor}">${typeLabel}</span>
+      </div>
+      <div class="log-body-row">
+        <div>打卡区间: ${r.clockInTime} ~ ${r.clockOutTime}</div>
+      </div>
+      <div class="log-body-row" style="margin-top:4px;">
+        <div>加班时长: <span style="color:#ffd166">${r.otHours.toFixed(1)}h</span></div>
+        <div>加班费: <span style="color:#ffd166">¥${r.salary.toFixed(1)}</span></div>
+      </div>
+      <div class="log-actions">
+        <button class="log-btn" data-id="${r.id}" data-action="edit">✏️ 修改时间</button>
+        <button class="log-btn del" data-id="${r.id}" data-action="del">🗑️ 删除</button>
+      </div>
+    `;
+    logBody.appendChild(div);
+  });
+
+  logBody.querySelectorAll('.log-btn').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const action = btn.dataset.action;
+      if (action === 'edit') {
+        openEditModal(id);
+      } else if (action === 'del') {
+        if (confirm('确定要删除这条记录吗？')) {
+          S.records = S.records.filter(x => x.id !== id);
+          recalcTodayStats();
+          save(); refreshUI(); renderLog();
+          showToast('记录已删除');
+        }
+      }
+    };
+  });
+}
+
+function openEditModal(id) {
+  const record = S.records.find(x => x.id === id);
+  if (!record) return;
+  editingRecordId = id;
+  editIn.value = record.clockInTime;
+  editOut.value = record.clockOutTime;
+  editModal.classList.add('show');
+}
+
+$('btnCancelEdit').onclick = (e) => {
+  e.stopPropagation();
+  editModal.classList.remove('show');
+};
+
+$('btnSaveEdit').onclick = (e) => {
+  e.stopPropagation();
+  const record = S.records.find(x => x.id === editingRecordId);
+  if (!record) return;
+  
+  const newIn = editIn.value;
+  const newOut = editOut.value;
+  if (!newIn || !newOut) { showToast('请填入完整时间'); return; }
+
+  const [eh, em] = S.workEnd.split(':').map(Number);
+  const [inh, inm] = newIn.split(':').map(Number);
+  const [outh, outm] = newOut.split(':').map(Number);
+
+  const inMin = inh * 60 + inm;
+  const outMin = outh * 60 + outm;
+  
+  let otMins = 0;
+  if (record.type === 'overtime') {
+    otMins = outMin - inMin;
+    if (otMins < 0) otMins += 24 * 60;
+  } else {
+    const endMin = eh * 60 + em;
+    if (outMin > endMin) {
+      otMins = outMin - endMin;
+    } else {
+      otMins = 0;
+    }
+  }
+
+  const otHours = Math.floor((otMins + 5) / 30) * 0.5;
+  const isWeekend = [0, 6].includes(new Date(record.date).getDay());
+  const rate = isWeekend ? S.otRateWeekend : S.otRateWeekday;
+  const money = otHours * rate;
+
+  record.clockInTime = newIn;
+  record.clockOutTime = newOut;
+  record.otHours = otHours;
+  record.salary = money;
+
+  recalcTodayStats();
+  save(); refreshUI(); renderLog();
+  editModal.classList.remove('show');
+  showToast('记录已更新，同步至文件');
+};
+
+/* ===================== 拖拽与交互 ===================== */
+function syncSettings() {
+  $('setStart').value = S.workStart; $('setEnd').value = S.workEnd;
+  $('setRateWd').value = S.otRateWeekday; $('setRateWe').value = S.otRateWeekend;
+  $('setFocus').value = S.focusDuration; $('setSavePath').value = S.savePath || 'D:\\material\\other\\workcat_data.json';
+  renderEvents();
+}
+
+catWrap.addEventListener('pointerdown', (e) => {
+  if (e.button === 2) return;
+  isDragging = false; startX = e.clientX; startY = e.clientY;
+  catWrap.setPointerCapture(e.pointerId);
+});
+catWrap.addEventListener('pointermove', (e) => {
+  if (e.buttons !== 1 || e.button === 2) return;
+  const dx = e.clientX - startX, dy = e.clientY - startY;
+  if (!isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+    isDragging = true;
+    if (window.__TAURI__ && window.__TAURI__.window) {
+      window.__TAURI__.window.getCurrentWindow().startDragging();
+    } else if (window.__TAURI_INTERNALS__) {
+      window.__TAURI_INTERNALS__.invoke('plugin:window|start_dragging');
+    } else {
+      petWrapper.style.position = 'absolute';
+      const rect = petWrapper.getBoundingClientRect();
+      petWrapper.style.left = (rect.left + dx) + 'px'; petWrapper.style.top = (rect.top + dy) + 'px';
+      petWrapper.style.transform = 'none';
+    }
+  }
+});
+catWrap.addEventListener('pointerup', (e) => {
+  if (!isDragging && e.button === 0) {
+    if (S.focusEndAt) {
+      say('专注中，不要逗我啦喵！', 1500);
+      return;
+    }
+    const now = Date.now(); S.lastInteraction = now;
+    if (now - lastPet < 800) { say('喵喵喵～', 1200); return; }
+    lastPet = now;
+    S.mood = clamp(S.mood + 2, 0, 100); addExp(1);
+    say(['喵～', '舒服～', '最喜欢你了！', '摸摸头～'][Math.floor(Math.random() * 4)], 1600);
+    spawnHeart(); refreshUI();
+  }
+  isDragging = false;
+});
+
+window.addEventListener('contextmenu', (e) => {
+  e.preventDefault(); syncSettings();
+  let x = e.clientX, y = e.clientY;
+  const menuWidth = contextMenu.offsetWidth || 250;
+  const menuHeight = contextMenu.offsetHeight || 220;
+  if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10;
+  if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10;
+  if (x < 5) x = 5; if (y < 5) y = 5;
+  contextMenu.style.left = x + 'px'; contextMenu.style.top = y + 'px';
+  contextMenu.classList.add('show');
+});
+window.addEventListener('click', (e) => { if (!contextMenu.contains(e.target)) contextMenu.classList.remove('show'); });
+
+/* ===================== 主循环与事件提醒 ===================== */
+function checkEvents() {
+  const today = new Date();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const todayStr = `${today.getFullYear()}-${mm}-${dd}`;
+  const currentTime = String(today.getHours()).padStart(2, '0') + ':' + String(today.getMinutes()).padStart(2, '0');
+
+  S.events.forEach(ev => {
+    if (S.lastNotified[ev.id] === todayStr) return;
+
+    let trigger = false;
+
+    if (ev.freq === 'anniversary' && ev.date === todayStr) {
+      trigger = true;
+    } else if (ev.freq === 'yearly') {
+      if (parseInt(mm) === ev.month && parseInt(dd) === ev.day) trigger = true;
+    } else if (ev.freq === 'monthly') {
+      if (parseInt(dd) === ev.day) trigger = true;
+    } else if (ev.freq === 'daily') {
+      if (ev.time === currentTime) trigger = true;
+    }
+
+    if (trigger) {
+      say(`📅 提醒：今天是 ${ev.name} 喵！`, 5000);
+      showToast(`日历提醒：${ev.name}`);
+      S.lastNotified[ev.id] = todayStr;
+    }
+  });
+  save();
+}
+
+function tick() {
+  const now = Date.now();
+  const dt = Math.min(now - S.lastTick, 3600000); S.lastTick = now;
+  if (dt > 0) {
+    S.hunger = clamp(S.hunger - (dt / 600000) * 1, 0, 100);
+    let moodDrain = dt / 900000;
+    if (S.hunger < 20) moodDrain *= 2;
+    S.mood = clamp(S.mood - moodDrain, 0, 100);
+  }
+  const today = new Date().toDateString();
+  if (S.lastDate !== today) { 
+    S.lastDate = today; S.todayOT = 0; S.todayOTMoney = 0; S.todayFocus = 0;
+    S.clockInAt = null; S.clockInType = null; S.hasClockedOutToday = false;
+    S._ot30 = false; S._ot60 = false; 
+  }
+
+  if (now % 60000 < 1000) checkEvents();
+
+  if (S.clockInAt) {
+    if (now - S.waterAt > S.waterInterval * 60000) { S.waterAt = now; say('喵～ 该喝水啦 💧', 3500); }
+    if (now - S.sitAt > S.sitInterval * 60000) { S.sitAt = now; say('起来活动一下喵 🐾', 3500); }
+    const [eh, em] = S.workEnd.split(':').map(Number);
+    const endToday = new Date(); endToday.setHours(eh, em, 0, 0);
+    const over = (now - endToday.getTime()) / 60000;
+    if (over >= 60 && !S._ot60) { S._ot60 = true; say('已经加班 1 小时了喵…\n早点回家好不好', 4200); }
+    else if (over >= 30 && !S._ot30) { S._ot30 = true; say('下班时间到啦喵！\n要打卡下班吗？', 3800); }
+  } else { S._ot30 = false; S._ot60 = false; }
+  refreshUI(); save();
+}
+setInterval(tick, 1000);
+
+/* ===================== 游戏系统 ===================== */
+const GAMES = {
+  fish: { name: '🎣 小猫钓鱼', cost: 3,  cooldown: 45000 },
+  coin: { name: '💰 接金币',   cost: 0,  cooldown: 45000 },
+  rps:  { name: '✊ 猜拳',     cost: 0,  cooldown: 30000 },
+};
+const cooldowns = { fish: 0, coin: 0, rps: 0 };
+let activeGame = null, menuTimer = null;
+
+function openMenu() {
+  gameMenuEl.classList.add('show'); renderMenu();
+  clearInterval(menuTimer); menuTimer = setInterval(renderMenu, 500);
+}
+function closeMenu() { gameMenuEl.classList.remove('show'); clearInterval(menuTimer); }
+function renderMenu() {
+  const now = Date.now();
+  gameMenuEl.querySelectorAll('.game-card').forEach(card => {
+    const type = card.dataset.game, cfg = GAMES[type], cd = cooldowns[type] - now;
+    const cdEl = card.querySelector('.cd');
+    if (cd > 0) { cdEl.textContent = `冷却 ${Math.ceil(cd / 1000)}s`; card.classList.add('disabled'); }
+    else { cdEl.textContent = cfg.cost ? `消耗 ${cfg.cost} 💰` : '免费'; card.classList.remove('disabled'); }
+  });
+  $('menuCoins').textContent = S.coins;
+}
+
+btnGame.onclick = (e) => { 
+  e.stopPropagation(); 
+  if (S.focusEndAt) { showToast('专注中，不许分心喵！'); return; }
+  contextMenu.classList.remove('show'); 
+  if (!activeGame) openMenu(); 
+};
+$('menuClose').onclick = closeMenu;
+$('gameQuit').onclick = () => closeGame();
+
+gameMenuEl.querySelectorAll('.game-card').forEach(card => {
+  card.onclick = () => {
+    const type = card.dataset.game, cfg = GAMES[type];
+    if (Date.now() < cooldowns[type]) { showToast(`冷却中，再等等喵`); return; }
+    if (S.coins < cfg.cost) { showToast('金币不足喵…'); return; }
+    startGame(type);
+  };
+});
+
+function startGame(type) {
+  if (activeGame) return;
+  S.coins -= GAMES[type].cost; refreshUI(); save();
+  gameMenuEl.classList.remove('show'); gamePlayEl.classList.add('show');
+  gameTitle.textContent = GAMES[type].name;
+  gameTimer.textContent = ''; gameBody.innerHTML = '';
+  activeGame = { type, cleanup: null };
+  if (type === 'fish') initFish();
+  else if (type === 'coin') initCoin();
+  else if (type === 'rps') initRPS();
+}
+
+function closeGame() {
+  if (activeGame && activeGame.cleanup) activeGame.cleanup();
+  activeGame = null;
+  gamePlayEl.querySelectorAll('.result-mask').forEach(e => e.remove());
+  gameBody.innerHTML = ''; gameTimer.textContent = ''; gamePlayEl.classList.remove('show');
+}
+
+function showResult(msg) {
+  gamePlayEl.querySelectorAll('.result-mask').forEach(e => e.remove());
+  const div = document.createElement('div'); div.className = 'result-mask';
+  div.innerHTML = `<div class="result-card"><p>${msg}</p><button class="btn btn-feed" id="resultOk">好的喵</button></div>`;
+  gamePlayEl.appendChild(div);
+  $('resultOk').onclick = () => closeGame();
+}
+
+/* 钓鱼 */
+function initFish() {
+  gameBody.innerHTML = `
+    <div class="fish-top"><div class="fish-bar-bg"><div id="fishBar"></div></div><div class="timer" id="fishTimer" style="font-size:12px;font-weight:700;color:#ffd166;">30s</div></div>
+    <div class="fish-lane" id="fishLane"><div class="fish-target" id="fishTarget">🐟</div><div class="fish-hook" id="fishHook"></div></div>
+    <div class="fish-hint" id="fishHint">按住 <b>屏幕/空格</b> 让绿块上升</div>`;
+  const lane = $('fishLane'), fishEl = $('fishTarget'), hookEl = $('fishHook'), bar = $('fishBar'), timerEl = $('fishTimer'), hintEl = $('fishHint');
+  let hookY = 0.5, hookV = 0, fishY = 0.3, fishTarget = 0.3, fishT = 0, progress = 35, timeLeft = 30, held = false;
+  let last = performance.now(), raf = null, finished = false;
+  const hookHalfHeight = 0.15, minY = hookHalfHeight + 0.02, maxY = 1 - hookHalfHeight - 0.02;
+  const onDown = (e) => { if (e.target.closest && e.target.closest('button')) return; if (e.cancelable) e.preventDefault(); held = true; };
+  const onUp = () => { held = false; };
+  const onKeyDown = (e) => { if (e.code === 'Space') { e.preventDefault(); held = true; } };
+  const onKeyUp = (e) => { if (e.code === 'Space') held = false; };
+  gamePlayEl.addEventListener('pointerdown', onDown); window.addEventListener('pointerup', onUp); window.addEventListener('pointercancel', onUp);
+  window.addEventListener('keydown', onKeyDown); window.addEventListener('keyup', onKeyUp);
+  function loop(now) {
+    if (finished) return;
+    const dt = Math.min((now - last) / 1000, 0.05); last = now; timeLeft -= dt;
+    const targetV = held ? -0.85 : 0.85; hookV += (targetV - hookV) * Math.min(1, dt * 12);
+    hookY += hookV * dt;
+    if (hookY < minY) { hookY = minY; if (hookV < 0) hookV = 0; }
+    if (hookY > maxY) { hookY = maxY; if (hookV > 0) hookV = 0; }
+    fishT -= dt; if (fishT <= 0) { fishT = 0.45 + Math.random() * 1.1; fishTarget = 0.1 + Math.random() * 0.8; }
+    fishY += (fishTarget - fishY) * Math.min(1, dt * 3);
+    const inZone = Math.abs(hookY - fishY) < hookHalfHeight;
+    progress += (inZone ? 24 : -16) * dt; progress = clamp(progress, 0, 100);
+    hookEl.style.top = (hookY * 100) + '%'; fishEl.style.top = (fishY * 100) + '%'; bar.style.width = progress + '%';
+    timerEl.textContent = Math.ceil(Math.max(0, timeLeft)) + 's'; lane.classList.toggle('in-zone', inZone);
+    hintEl.innerHTML = inZone ? '<b style="color:#4ecca3">上钩啦！保持住～</b>' : '把绿块对准鱼儿';
+    if (progress >= 100) { finishFish(true); return; }
+    if (progress <= 0 || timeLeft <= 0) { finishFish(false); return; }
+    raf = requestAnimationFrame(loop);
+  }
+  function finishFish(success) {
+    if (finished) return; finished = true; cancelAnimationFrame(raf);
+    let msg;
+    if (success) {
+      const reward = 10 + Math.floor(Math.random() * 10);
+      S.coins += reward; S.mood = clamp(S.mood + 4, 0, 100); addExp(12);
+      msg = `🐟 钓到啦！\n获得 ${reward} 💰`; say('哇！好大一条鱼喵～', 2600);
+      for (let i = 0; i < 4; i++) setTimeout(spawnHeart, i * 100); showToast(`+${reward} 💰`);
+    } else { S.mood = clamp(S.mood - 2, 0, 100); msg = '鱼儿跑掉了…\n下次加油喵'; }
+    cooldowns.fish = Date.now() + GAMES.fish.cooldown; refreshUI(); save(); showResult(msg);
+  }
+  activeGame.cleanup = () => {
+    finished = true; cancelAnimationFrame(raf);
+    gamePlayEl.removeEventListener('pointerdown', onDown); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp);
+    window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp);
+  };
+  last = performance.now(); raf = requestAnimationFrame(loop);
+}
+
+/* 接金币 */
+function initCoin() {
+  gameBody.innerHTML = `<div id="coinArena"><div class="coin-score" id="coinScore">0 💰</div></div>`;
+  const arena = $('coinArena'), scoreEl = $('coinScore');
+  let collected = 0, timeLeft = 12, finished = false;
+  const timers = [];
+  function updateTimer() { gameTimer.textContent = timeLeft + 's'; }
+  updateTimer();
+  timers.push(setInterval(() => {
+    if (finished) return;
+    const c = document.createElement('div'); c.className = 'falling-coin'; c.textContent = '💰';
+    c.style.left = (8 + Math.random() * 80) + '%'; c.style.top = (12 + Math.random() * 72) + '%';
+    c.addEventListener('pointerdown', (e) => {
+      e.stopPropagation(); if (finished || c.dataset.got) return;
+      if (e.cancelable) e.preventDefault(); c.dataset.got = '1'; collected++;
+      scoreEl.textContent = collected + ' 💰';
+      c.style.transition = 'transform .15s, opacity .15s'; c.style.transform = 'scale(1.6)'; c.style.opacity = '0';
+      setTimeout(() => c.remove(), 160);
+    });
+    arena.appendChild(c); setTimeout(() => c.remove(), 1300);
+  }, 380));
+  timers.push(setInterval(() => { timeLeft--; updateTimer(); if (timeLeft <= 0) finishCoin(); }, 1000));
+  function finishCoin() {
+    if (finished) return; finished = true; timers.forEach(clearInterval);
+    S.coins += collected; S.mood = clamp(S.mood + Math.min(10, collected), 0, 100); addExp(Math.floor(collected / 2));
+    cooldowns.coin = Date.now() + GAMES.coin.cooldown; refreshUI(); save();
+    say(collected > 10 ? '好厉害喵！接住好多！' : '接住了一些金币～', 2200);
+    showResult(`接到 ${collected} 枚金币！\n+${collected} 💰`);
+  }
+  activeGame.cleanup = () => { finished = true; timers.forEach(clearInterval); };
+}
+
+/* 猜拳 */
+function initRPS() {
+  const opts = [{ k: 'rock', e: '✊', n: '石头' }, { k: 'scissors', e: '✌️', n: '剪刀' }, { k: 'paper', e: '🖐️', n: '布' }];
+  const beats = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
+  gameBody.innerHTML = `
+    <div class="rps-wrap">
+      <div class="rps-cat" id="rpsCat">🐱</div><div class="rps-text" id="rpsText">出拳吧！赢了拿金币喵</div>
+      <div class="rps-btns">${opts.map(o => `<button class="rps-btn" data-k="${o.k}"><span>${o.e}</span><small>${o.n}</small></button>`).join('')}</div>
+    </div>`;
+  let finished = false, resultTimer = null;
+  gameBody.querySelectorAll('.rps-btn').forEach(btn => {
+    btn.onclick = () => {
+      if (finished) return; finished = true;
+      const player = btn.dataset.k, cat = opts[Math.floor(Math.random() * 3)].k;
+      const catEl = $('rpsCat'), textEl = $('rpsText');
+      catEl.textContent = opts.find(o => o.k === cat).e;
+      let reward = 0, msg = '';
+      if (player === cat) { reward = 3; msg = '平局！送你 3 💰'; }
+      else if (beats[player] === cat) { reward = 10; msg = '你赢啦！+10 💰'; }
+      else { msg = '我赢了喵～ 下次加油'; }
+      if (reward) S.coins += reward;
+      S.mood = clamp(S.mood + (reward ? 6 : 2), 0, 100); addExp(reward ? 8 : 3);
+      textEl.textContent = msg; cooldowns.rps = Date.now() + GAMES.rps.cooldown;
+      refreshUI(); save(); say(reward ? '你手气真好喵！' : '嘿嘿，我赢啦～', 2000);
+      if (reward) showToast(`+${reward} 💰`);
+      resultTimer = setTimeout(() => { if (!finished) return; showResult(msg); }, 950);
+    };
+  });
+  activeGame.cleanup = () => { finished = true; clearTimeout(resultTimer); };
+}
+
+/* 启动 */
+function boot() {
+  refreshUI(); checkEvents();
+  const hour = new Date().getHours();
+  let greeting = '喵～今天也一起加油！';
+  if (hour < 9) greeting = '早上好喵～ 新的一天！';
+  else if (hour >= 18 && hour < 21) greeting = '下班时间到啦喵！';
+  else if (hour >= 21) greeting = '这么晚了…注意休息喵 💤';
+  setTimeout(() => say(greeting, 3000), 600);
+}
+boot();
+</script>
+</body>
+</html>
